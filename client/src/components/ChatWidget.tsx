@@ -4,8 +4,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
-import { MessageCircle, X, Send, Loader2 } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Users } from "lucide-react";
 import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
 
 interface Message {
   id: string;
@@ -15,15 +16,28 @@ interface Message {
   createdAt: Date;
 }
 
+interface UserItem {
+  id: string;
+  email: string;
+  fullName: string;
+}
+
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const { user } = useAuth();
+
+  // For admins, fetch list of all users
+  const { data: users = [] } = useQuery<UserItem[]>({
+    queryKey: ["/api/users"],
+    enabled: user?.role === "admin",
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -82,11 +96,17 @@ export function ChatWidget() {
   const sendMessage = () => {
     if (!newMessage.trim() || !wsRef.current || !user) return;
 
+    // For admins, require a selected user
+    if (user.role === "admin" && !selectedUserId) {
+      return; // Can't send without selecting a user
+    }
+
     const message = {
       type: "send",
       userId: user.id,
       senderRole: user.role,
       message: newMessage.trim(),
+      targetUserId: user.role === "admin" ? selectedUserId : undefined,
     };
 
     wsRef.current.send(JSON.stringify(message));
@@ -148,15 +168,48 @@ export function ChatWidget() {
             </Button>
           </div>
 
+          {/* Admin: User Selection */}
+          {user?.role === "admin" && (
+            <div className="p-3 border-b bg-muted/30">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                Chatting with:
+              </label>
+              <select
+                className="w-full text-sm rounded-md border border-input bg-background px-3 py-1.5"
+                value={selectedUserId || ""}
+                onChange={(e) => {
+                  setSelectedUserId(e.target.value || null);
+                  // Filter messages for selected user
+                  if (e.target.value) {
+                    setMessages((prev) => prev.filter(m => m.userId === e.target.value));
+                  }
+                }}
+                data-testid="select-chat-user"
+              >
+                <option value="">Select a user...</option>
+                {users.filter(u => u.id !== user.id).map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullName} ({u.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 ? (
+            {user?.role === "admin" && !selectedUserId ? (
+              <div className="text-center text-muted-foreground text-sm mt-8">
+                <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>Select a user to view their chat messages</p>
+              </div>
+            ) : messages.filter(m => user?.role === "admin" ? m.userId === selectedUserId : true).length === 0 ? (
               <div className="text-center text-muted-foreground text-sm mt-8">
                 <p>No messages yet.</p>
-                <p className="mt-2">Start a conversation with our support team!</p>
+                <p className="mt-2">Start a conversation{user?.role === "user" ? " with our support team" : ""}!</p>
               </div>
             ) : (
-              messages.map((msg) => (
+              messages.filter(m => user?.role === "admin" ? m.userId === selectedUserId : true).map((msg) => (
                 <div
                   key={msg.id}
                   className={`flex ${msg.senderRole === user.role ? "justify-end" : "justify-start"}`}
@@ -194,7 +247,7 @@ export function ChatWidget() {
               <Button
                 size="icon"
                 onClick={sendMessage}
-                disabled={!newMessage.trim() || !isConnected}
+                disabled={!newMessage.trim() || !isConnected || (user?.role === "admin" && !selectedUserId)}
                 data-testid="button-chat-send"
               >
                 {!isConnected ? (

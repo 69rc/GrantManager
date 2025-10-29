@@ -286,7 +286,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               clients.set(userId, ws);
               
               // Send chat history
-              const chatHistory = await storage.getChatMessagesByUser(userId);
+              // For admins, send ALL chat messages; for users, send only their messages
+              const user = await storage.getUser(userId);
+              let chatHistory: any[] = [];
+              
+              if (user?.role === 'admin') {
+                // Admin sees all chat messages from all users
+                const allMessages = await storage.getAllChatMessages();
+                chatHistory = allMessages;
+              } else {
+                // Regular users see only their own messages
+                chatHistory = await storage.getChatMessagesByUser(userId);
+              }
+              
               ws.send(JSON.stringify({ type: 'history', messages: chatHistory }));
             }
           } catch (error) {
@@ -303,9 +315,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return;
           }
 
+          // Determine which userId to associate with this message
+          let targetUserId = userId;
+          
+          // If sender is admin, find the most recent user message and use that user's ID
+          // This ensures admin messages appear in the user's chat thread
+          if (user.role === 'admin') {
+            const allMessages = await storage.getAllChatMessages();
+            // Find the most recent message from a non-admin user
+            const recentUserMessage = allMessages
+              .filter(m => m.senderRole === 'user')
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+            
+            if (recentUserMessage) {
+              targetUserId = recentUserMessage.userId;
+            }
+          }
+
           // Use server-verified role, not client-supplied
           const chatMessage = await storage.createChatMessage({
-            userId: userId,
+            userId: targetUserId,
             senderRole: user.role, // Server-verified role only
             message: message.message,
           });
@@ -318,8 +347,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
             clients.get(userId)!.send(messageData);
           }
 
-          // Send to all admins if sender is not admin
-          if (user.role !== 'admin') {
+          // Broadcast logic based on sender role
+          if (user.role === 'admin') {
+            // Admin message: send to the user this conversation is about
+            // (userId in the message is the user being helped, not the admin)
+            // Also send to other admins who might be online
+            const allUsers = await storage.getAllUsers();
+            allUsers.forEach(u => {
+              // Send to other admins or to the user this conversation is about
+              if (clients.has(u.id) && u.id !== userId) {
+                if (u.role === 'admin' || u.id === chatMessage.userId) {
+                  clients.get(u.id)!.send(messageData);
+                }
+              }
+            });
+          } else {
+            // User message: send to all admins
             const allUsers = await storage.getAllUsers();
             const admins = allUsers.filter(u => u.role === 'admin');
             admins.forEach(admin => {

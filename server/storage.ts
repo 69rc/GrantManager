@@ -1,5 +1,6 @@
 import { type User, type InsertUser, type GrantApplication, type InsertGrantApplication, type ChatMessage, type InsertChatMessage } from "@shared/schema";
 import { randomUUID } from "crypto";
+import bcrypt from "bcryptjs";
 
 export interface IStorage {
   // User operations
@@ -17,6 +18,7 @@ export interface IStorage {
 
   // Chat message operations
   getChatMessagesByUser(userId: string): Promise<ChatMessage[]>;
+  getAllChatMessages(): Promise<ChatMessage[]>;
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
 }
 
@@ -33,12 +35,12 @@ export class MemStorage implements IStorage {
   }
 
   private seedData() {
-    // Create admin user
+    // Create admin user with real bcrypt hash
     const adminId = randomUUID();
     const admin: User = {
       id: adminId,
       email: "admin@granthub.com",
-      password: "$2a$10$rGvH9YQJXKvVKJYJLvVs4.vF8qVV8QZhHYD.YxYxYx", // "admin123"
+      password: bcrypt.hashSync("admin123", 10), // Real bcrypt hash for "admin123"
       fullName: "Admin User",
       phoneNumber: "+1 234 567 8900",
       role: "admin",
@@ -46,12 +48,12 @@ export class MemStorage implements IStorage {
     };
     this.users.set(adminId, admin);
 
-    // Create demo user
+    // Create demo user with real bcrypt hash
     const userId = randomUUID();
     const user: User = {
       id: userId,
       email: "demo@example.com",
-      password: "$2a$10$rGvH9YQJXKvVKJYJLvVs4.vF8qVV8QZhHYD.YxYxYx", // "password"
+      password: bcrypt.hashSync("password", 10), // Real bcrypt hash for "password"
       fullName: "Demo User",
       phoneNumber: "+1 555 123 4567",
       role: "user",
@@ -180,6 +182,11 @@ export class MemStorage implements IStorage {
   async getChatMessagesByUser(userId: string): Promise<ChatMessage[]> {
     return Array.from(this.chatMessages.values())
       .filter((msg) => msg.userId === userId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }
+
+  async getAllChatMessages(): Promise<ChatMessage[]> {
+    return Array.from(this.chatMessages.values())
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }
 
