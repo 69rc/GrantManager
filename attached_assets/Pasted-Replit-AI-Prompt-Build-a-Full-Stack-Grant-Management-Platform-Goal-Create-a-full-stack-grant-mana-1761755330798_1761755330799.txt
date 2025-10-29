@@ -1,0 +1,144 @@
+Replit AI Prompt: Build a Full-Stack Grant Management Platform
+
+Goal:
+Create a full-stack grant management website using React (frontend), Node.js + Express (backend), and MongoDB as the database.
+The website should allow users to apply for grants, track their applications, and communicate with the admin. Admins should be able to manage users and applications from a dashboard.
+
+🌐 Core Features
+1. User System
+
+User registration & login with JWT authentication.
+
+Password encryption using bcrypt.
+
+User profile page showing application history and status.
+
+Password reset via email (using Nodemailer).
+
+Social login (optional: Google or Facebook using OAuth).
+
+2. Grant Application
+
+Users can apply for a grant using a dynamic form.
+
+Fields: full name, email, phone number, address, project title, project description, grant type (dropdown), requested amount, and optional file upload (proposal or budget PDF).
+
+Store uploaded files using Cloudinary or Replit storage.
+
+Users can view, edit, or delete their applications before approval.
+
+Each application has a status: Pending, Under Review, Approved, or Rejected.
+
+3. Admin Dashboard
+
+Secure admin login.
+
+View all users and all grant applications.
+
+Filter applications by status or grant type.
+
+Approve or reject applications with a single click.
+
+Send email notifications to users on approval or rejection.
+
+Export application data as CSV or PDF.
+
+Analytics panel showing total grants, approval rate, and user count (use Chart.js or Recharts).
+
+4. Communication System
+
+“Contact Admin” section where users can reach out via:
+
+WhatsApp (use https://wa.me/ link)
+
+Email (mailto: link)
+
+Facebook, Instagram, X (Twitter) links
+
+In-app chat widget between user and admin (simple real-time chat using Socket.io or Firebase).
+
+Admin receives notifications for new chat messages or applications.
+
+5. Frontend Pages
+
+Home page: Overview of the organization, featured grants, and "Apply Now" button.
+
+About Us: mission, team, contact details.
+
+Grants page: list of available grant types with filters and “Apply” buttons.
+
+Apply page: dynamic form for applications.
+
+Application Status page: track submitted applications.
+
+Contact Admin page: chat, WhatsApp, social links.
+
+Admin Dashboard: manage users, applications, and view analytics.
+
+6. Design & UI
+
+Clean, modern layout using TailwindCSS or Bootstrap.
+
+Responsive for mobile, tablet, and desktop.
+
+Toasts or modals for success/error messages.
+
+Loading spinners when fetching or submitting data.
+
+Dark mode toggle.
+
+7. Notifications & Automation
+
+Automatic email to users confirming receipt of application.
+
+Email alerts to admin when a new application is submitted.
+
+Status change notifications (approved/rejected).
+
+Optional SMS notifications using Twilio API.
+
+8. Security & Roles
+
+JWT authentication with roles (user, admin).
+
+Protected routes for admin-only pages.
+
+Input validation and sanitation to prevent XSS/SQL injection.
+
+Rate limiting for login and API routes.
+
+9. Deployment & Configuration
+
+Use environment variables for secrets: JWT_SECRET, DB_URI, EMAIL_USER, EMAIL_PASS, CLOUDINARY_KEY.
+
+Provide .env.example file.
+
+Include setup instructions:
+
+npm install
+
+npm run dev for local
+
+ready for deployment to Replit or Render.
+
+10. Bonus (Optional)
+
+Add an AI Grant Advisor (simple chatbot or text box that uses OpenAI API to suggest the best grant type based on project description).
+
+Add a blog or announcement section (admins can post updates).
+
+Support multiple languages (English + one more).
+
+Add pagination and search to application list.
+
+✅ Expected Output
+
+Complete working code (frontend + backend).
+
+Clear folder structure (client/, server/).
+
+Instructions on how to run both sides.
+
+Example .env and seeded data for testing.
+
+Responsive, modern UI ready for live hosting.
