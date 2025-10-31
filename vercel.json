@@ -20,8 +20,25 @@
       "dest": "server/vercel-api.ts"
     }
   ],
+  "functions": {
+    "server/vercel-api.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
   "env": {
     "DATABASE_URL": "$DATABASE_URL",
     "JWT_SECRET": "$JWT_SECRET"
-  }
+  },
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
 }
