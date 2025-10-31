@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/queryClient";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 
 export default function Register() {
@@ -17,6 +19,7 @@ export default function Register() {
   const { login } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
 
   const form = useForm<RegisterUser>({
     resolver: zodResolver(registerUserSchema),
@@ -30,6 +33,7 @@ export default function Register() {
 
   const onSubmit = async (data: RegisterUser) => {
     setIsLoading(true);
+    setRegisterError(null); // Clear previous errors
     try {
       const response = await apiRequest<{ user: any; token: string }>("POST", "/api/auth/register", data);
       login(response.user, response.token);
@@ -39,9 +43,15 @@ export default function Register() {
       });
       navigate("/dashboard");
     } catch (error: any) {
+      // Handle the error appropriately
+      let errorMessage = "Could not create account. Please try again.";
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      setRegisterError(errorMessage);
       toast({
         title: "Registration failed",
-        description: error.message || "Could not create account. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -59,6 +69,23 @@ export default function Register() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {registerError && (
+            <div className="mb-4">
+              <Alert 
+                variant="destructive" 
+                size="sm"
+                closable
+                onClose={() => setRegisterError(null)}
+                showIcon
+                icon={<AlertCircle className="h-5 w-5" />}
+              >
+                <AlertTitle>Registration Error</AlertTitle>
+                <AlertDescription>
+                  {registerError}
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { type GrantApplication, type User } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -14,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Users, FileText, TrendingUp, DollarSign, Filter, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { UserTable } from "@/components/UserTable";
 
 const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))"];
 
@@ -22,7 +24,7 @@ export default function Admin() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [grantTypeFilter, setGrantTypeFilter] = useState<string>("all");
-  const [selectedApplication, setSelectedApplication] = useState<GrantApplication | null>(null);
+  const [selectedApplication, setSelectedApplication] = useState<(GrantApplication & { disbursementAmount?: number }) | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<string>("");
   const [adminNotes, setAdminNotes] = useState("");
@@ -36,22 +38,37 @@ export default function Admin() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, status, notes }: { id: string; status: string; notes: string }) => {
-      return apiRequest("PATCH", `/api/applications/${id}/status`, { status, adminNotes: notes });
+    mutationFn: async ({ id, status, notes, disbursementAmount }: { id: string; status: string; notes: string; disbursementAmount?: number }) => {
+      return apiRequest("PATCH", `/api/applications/${id}/status`, { status, adminNotes: notes, disbursementAmount });
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/applications"] });
-      toast({
-        title: "Status updated",
-        description: "Application status has been updated successfully.",
-      });
+      
+      // Show different toast messages based on status
+      if (variables.status === "approved" && variables.disbursementAmount) {
+        toast({
+          title: "Application Approved with Disbursement Fee",
+          description: `Application approved with $${variables.disbursementAmount} disbursement fee required.`,
+        });
+      } else {
+        toast({
+          title: "Status updated",
+          description: "Application status has been updated successfully.",
+        });
+      }
+      
       setDialogOpen(false);
       setSelectedApplication(null);
     },
     onError: (error: any) => {
+      // Handle the error appropriately
+      let errorMessage = "Could not update status.";
+      if (error.message) {
+        errorMessage = error.message;
+      }
       toast({
         title: "Update failed",
-        description: error.message || "Could not update status.",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -117,7 +134,10 @@ export default function Admin() {
   const approvalRate = stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0;
 
   const handleOpenDialog = (application: GrantApplication) => {
-    setSelectedApplication(application);
+    setSelectedApplication({
+      ...application,
+      disbursementAmount: application.disbursementAmount || 1500
+    });
     setNewStatus(application.status);
     setAdminNotes(application.adminNotes || "");
     setDialogOpen(true);
@@ -125,10 +145,15 @@ export default function Admin() {
 
   const handleUpdateStatus = () => {
     if (selectedApplication) {
+      const disbursementAmount = newStatus === "approved" 
+        ? (selectedApplication.disbursementAmount !== undefined ? selectedApplication.disbursementAmount : 1500)
+        : undefined;
+      
       updateMutation.mutate({
         id: selectedApplication.id,
         status: newStatus,
         notes: adminNotes,
+        disbursementAmount,
       });
     }
   };
@@ -313,6 +338,21 @@ export default function Admin() {
             </Card>
           )}
         </div>
+
+        {/* User Management Section */}
+        <div className="space-y-4 mt-12">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold">Users ({users?.length || 0})</h2>
+          </div>
+          
+          {users && users.length > 0 ? (
+            <UserTable users={users} applications={applications || []} />
+          ) : (
+            <Card className="p-12 text-center">
+              <p className="text-muted-foreground">No users found</p>
+            </Card>
+          )}
+        </div>
       </div>
 
       {/* Review Dialog */}
@@ -351,6 +391,32 @@ export default function Admin() {
                   </SelectContent>
                 </Select>
               </div>
+              
+              {newStatus === "approved" && (
+                <div>
+                  <Label htmlFor="disbursement">Disbursement Fee (USD)</Label>
+                  <Input
+                    id="disbursement"
+                    type="number"
+                    value={selectedApplication ? (selectedApplication.disbursementAmount ?? 1500) : 1500}
+                    onChange={(e) => {
+                      const amount = parseInt(e.target.value) || 0;
+                      // Update the selected application with the new disbursement amount
+                      if (selectedApplication) {
+                        setSelectedApplication({
+                          ...selectedApplication,
+                          disbursementAmount: amount
+                        });
+                      }
+                    }}
+                    placeholder="Enter disbursement fee amount"
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Standard disbursement fee is $1500 for approved applications
+                  </p>
+                </div>
+              )}
               <div>
                 <Label htmlFor="notes">Admin Notes</Label>
                 <Textarea

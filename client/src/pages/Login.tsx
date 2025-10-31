@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/queryClient";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 
 export default function Login() {
@@ -17,6 +19,7 @@ export default function Login() {
   const { login } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const form = useForm<LoginData>({
     resolver: zodResolver(loginSchema),
@@ -28,6 +31,7 @@ export default function Login() {
 
   const onSubmit = async (data: LoginData) => {
     setIsLoading(true);
+    setLoginError(null); // Clear previous errors
     try {
       const response = await apiRequest<{ user: any; token: string }>("POST", "/api/auth/login", data);
       login(response.user, response.token);
@@ -41,9 +45,15 @@ export default function Login() {
         navigate("/dashboard");
       }
     } catch (error: any) {
+      // Handle the error appropriately
+      let errorMessage = "Invalid credentials. Please try again.";
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      setLoginError(errorMessage);
       toast({
         title: "Login failed",
-        description: error.message || "Invalid credentials. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -61,6 +71,23 @@ export default function Login() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {loginError && (
+            <div className="mb-4">
+              <Alert 
+                variant="destructive" 
+                size="sm"
+                closable
+                onClose={() => setLoginError(null)}
+                showIcon
+                icon={<AlertCircle className="h-5 w-5" />}
+              >
+                <AlertTitle>Login Error</AlertTitle>
+                <AlertDescription>
+                  {loginError}
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField

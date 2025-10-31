@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "name": "grant-manager",
+  "builds": [
+    {
+      "src": "server/vercel-api.ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["dist/**", "shared/**", "uploads/**"]
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "server/vercel-api.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "server/vercel-api.ts"
+    }
+  ],
+  "env": {
+    "DATABASE_URL": "$DATABASE_URL",
+    "JWT_SECRET": "$JWT_SECRET"
+  }
+}

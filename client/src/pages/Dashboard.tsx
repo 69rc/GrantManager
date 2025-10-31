@@ -128,6 +128,30 @@ export default function Dashboard() {
                         <p className="text-sm text-muted-foreground">{application.adminNotes}</p>
                       </div>
                     )}
+                    {application.status === "approved" && application.disbursementAmount !== undefined && (
+                      <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg mb-4 dark:from-amber-950/20 dark:to-orange-950/20 dark:border-amber-800">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="p-1.5 bg-amber-500 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Disbursement Fee Required</p>
+                        </div>
+                        <p className="text-base font-bold text-amber-700 dark:text-amber-300">
+                          ${application.disbursementAmount.toLocaleString()} Disbursement Fee Required
+                        </p>
+                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                          Your grant application has been approved but requires a disbursement fee payment.
+                        </p>
+                        <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800">
+                          <p className="text-xs text-amber-600 dark:text-amber-400">
+                            Please contact our support team to arrange payment of the disbursement fee.
+                            Reference: {application.id.slice(0, 8)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4" />

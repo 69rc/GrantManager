@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/queryClient";
-import { Loader2, Upload, FileText } from "lucide-react";
+import { AlertCircle, Loader2, Upload, FileText } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 export default function Apply() {
   const [, navigate] = useLocation();
@@ -20,6 +21,7 @@ export default function Apply() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [applicationError, setApplicationError] = useState<string | null>(null);
 
   const form = useForm<InsertGrantApplication>({
     resolver: zodResolver(insertGrantApplicationSchema),
@@ -42,9 +44,11 @@ export default function Apply() {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
+        const errorMessage = "Please upload a file smaller than 10MB";
+        setApplicationError(errorMessage);
         toast({
           title: "File too large",
-          description: "Please upload a file smaller than 10MB",
+          description: errorMessage,
           variant: "destructive",
         });
         return;
@@ -55,9 +59,11 @@ export default function Apply() {
 
   const onSubmit = async (data: InsertGrantApplication) => {
     if (!user) {
+      const errorMessage = "Please login to submit an application";
+      setApplicationError(errorMessage);
       toast({
         title: "Authentication required",
-        description: "Please login to submit an application",
+        description: errorMessage,
         variant: "destructive",
       });
       navigate("/login");
@@ -65,6 +71,7 @@ export default function Apply() {
     }
 
     setIsLoading(true);
+    setApplicationError(null); // Clear previous errors
     try {
       // Prepare application data
       const applicationData = {
@@ -94,9 +101,23 @@ export default function Apply() {
         body: formData,
       });
 
+      // Clone response to handle errors without consuming body
+      const responseClone = response.clone();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Submission failed");
+        let errorMessage = "Submission failed";
+        try {
+          const error = await responseClone.json();
+          errorMessage = error.message || errorMessage;
+        } catch {
+          try {
+            const text = await responseClone.text();
+            if (text) errorMessage = text;
+          } catch {
+            errorMessage = response.statusText;
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       toast({
@@ -105,9 +126,15 @@ export default function Apply() {
       });
       navigate("/dashboard");
     } catch (error: any) {
+      // Handle the error appropriately
+      let errorMessage = "Could not submit application. Please try again.";
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      setApplicationError(errorMessage);
       toast({
         title: "Submission failed",
-        description: error.message || "Could not submit application. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -138,6 +165,23 @@ export default function Apply() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {applicationError && (
+              <div className="mb-6">
+                <Alert 
+                  variant="destructive" 
+                  size="sm"
+                  closable
+                  onClose={() => setApplicationError(null)}
+                  showIcon
+                  icon={<AlertCircle className="h-5 w-5" />}
+                >
+                  <AlertTitle>Application Error</AlertTitle>
+                  <AlertDescription>
+                    {applicationError}
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 {/* Personal Information */}

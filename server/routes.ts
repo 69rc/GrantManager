@@ -38,7 +38,7 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   message: "Too many requests, please try again later",
 });
 
@@ -216,7 +216,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const application = await storage.updateApplicationStatus(
         id,
         validatedData.status,
-        validatedData.adminNotes
+        validatedData.adminNotes,
+        validatedData.disbursementAmount
       );
 
       // In a real app, send email notification to user about status change
@@ -224,6 +225,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[EMAIL NOTIFICATION] Would send email to: ${application.email}`);
       console.log(`[EMAIL NOTIFICATION] Subject: Your Grant Application Status Update`);
       console.log(`[EMAIL NOTIFICATION] Message: Your application "${application.projectTitle}" is now ${validatedData.status}`);
+      if (validatedData.disbursementAmount) {
+        console.log(`[EMAIL NOTIFICATION] Disbursement amount: $${validatedData.disbursementAmount}`);
+      }
       
       res.json(application);
     } catch (error: any) {
@@ -249,145 +253,171 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create HTTP server
+  // Create HTTP server without WebSocket initially to avoid conflicts
   const httpServer = createServer(app);
 
-  // WebSocket server for real-time chat
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-
-  // Store active connections
-  const clients = new Map<string, WebSocket>();
-
-  wss.on('connection', (ws: WebSocket) => {
-    let userId: string | null = null;
-    let isAuthenticated = false;
-
-    ws.on('message', async (data: Buffer) => {
+  // Create WebSocket server
+  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+  
+  // Store connected clients
+  interface Client {
+    ws: WebSocket;
+    userId: string;
+    role: string;
+  }
+  
+  const clients: Map<string, Client> = new Map();
+  
+  // In-memory storage for messages (in a real app, use a database)
+  const messages: Array<{
+    id: string;
+    userId: string;
+    senderRole: string;
+    message: string;
+    createdAt: string;
+    targetUserId?: string;
+  }> = [];
+  
+  wss.on('connection', (ws: WebSocket, req) => {
+    console.log('[WS] New client connected');
+    
+    // Handle authentication
+    ws.on('message', (message) => {
       try {
-        const message = JSON.parse(data.toString());
-
-        if (message.type === 'auth') {
-          // SECURITY: Verify JWT token before accepting connection
-          const token = message.token;
-          if (!token) {
-            ws.send(JSON.stringify({ type: 'error', message: 'Authentication required' }));
-            ws.close();
-            return;
-          }
-
-          try {
-            // Verify JWT token
-            const decoded: any = jwt.verify(token, JWT_SECRET);
-            userId = decoded.id;
-            isAuthenticated = true;
-
-            // Store authenticated connection
-            if (userId) {
-              clients.set(userId, ws);
-              
-              // Send chat history
-              // For admins, send ALL chat messages; for users, send only their messages
-              const user = await storage.getUser(userId);
-              let chatHistory: any[] = [];
-              
-              if (user?.role === 'admin') {
-                // Admin sees all chat messages from all users
-                const allMessages = await storage.getAllChatMessages();
-                chatHistory = allMessages;
-              } else {
-                // Regular users see only their own messages
-                chatHistory = await storage.getChatMessagesByUser(userId);
-              }
-              
-              ws.send(JSON.stringify({ type: 'history', messages: chatHistory }));
+        const data = JSON.parse(message.toString());
+        
+        if (data.type === 'auth') {
+          // Verify JWT token
+          jwt.verify(data.token, JWT_SECRET, (err: any, decoded: any) => {
+            if (err) {
+              console.log('[WS] Authentication failed', err);
+              ws.send(JSON.stringify({ type: 'auth-error', message: 'Invalid token' }));
+              ws.close();
+              return;
             }
-          } catch (error) {
-            ws.send(JSON.stringify({ type: 'error', message: 'Invalid authentication token' }));
-            ws.close();
-            return;
-          }
-        } else if (message.type === 'send' && userId && isAuthenticated) {
-          // SECURITY: Look up user's actual role from storage
-          // Never trust client-supplied senderRole
-          const user = await storage.getUser(userId);
-          if (!user) {
-            ws.send(JSON.stringify({ type: 'error', message: 'User not found' }));
-            return;
-          }
-
-          // Determine which userId to associate with this message
-          let targetUserId = userId;
-          
-          // If sender is admin, find the most recent user message and use that user's ID
-          // This ensures admin messages appear in the user's chat thread
-          if (user.role === 'admin') {
-            const allMessages = await storage.getAllChatMessages();
-            // Find the most recent message from a non-admin user
-            const recentUserMessage = allMessages
-              .filter(m => m.senderRole === 'user')
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
             
-            if (recentUserMessage) {
-              targetUserId = recentUserMessage.userId;
-            }
-          }
-
-          // Use server-verified role, not client-supplied
-          const chatMessage = await storage.createChatMessage({
-            userId: targetUserId,
-            senderRole: user.role, // Server-verified role only
-            message: message.message,
+            // Add client to our map
+            clients.set(data.userId, { ws, userId: data.userId, role: decoded.role });
+            console.log(`[WS] User ${data.userId} authenticated as ${decoded.role}`);
+            
+            // Send chat history to the user
+            // For user: send messages where they are the sender or receiver
+            // For admin: send all messages
+            const userMessages = messages.filter(msg => 
+              decoded.role === 'admin' || 
+              msg.userId === data.userId || 
+              msg.targetUserId === data.userId
+            );
+            
+            ws.send(JSON.stringify({ 
+              type: 'history', 
+              messages: userMessages 
+            }));
           });
-
-          // Broadcast to user and all admins
-          const messageData = JSON.stringify({ type: 'message', ...chatMessage });
+        } 
+        else if (data.type === 'send' && data.userId) {
+          // Handle message sending
+          const sender = clients.get(data.userId);
           
-          // Send to original sender
-          if (clients.has(userId)) {
-            clients.get(userId)!.send(messageData);
+          if (!sender) {
+            ws.send(JSON.stringify({ type: 'error', message: 'User not authenticated' }));
+            return;
           }
-
-          // Broadcast logic based on sender role
-          if (user.role === 'admin') {
-            // Admin message: send to the user this conversation is about
-            // (userId in the message is the user being helped, not the admin)
-            // Also send to other admins who might be online
-            const allUsers = await storage.getAllUsers();
-            allUsers.forEach(u => {
-              // Send to other admins or to the user this conversation is about
-              if (clients.has(u.id) && u.id !== userId) {
-                if (u.role === 'admin' || u.id === chatMessage.userId) {
-                  clients.get(u.id)!.send(messageData);
-                }
+          
+          // Create message object
+          const messageObj = {
+            id: Date.now().toString(),
+            userId: data.userId,
+            senderRole: data.senderRole,
+            message: data.message,
+            createdAt: new Date().toISOString(),
+            targetUserId: data.targetUserId
+          };
+          
+          // Store message in memory (in a real app, this would go to a database)
+          messages.push(messageObj);
+          
+          if (sender.role === 'admin' && data.targetUserId) {
+            // Admin sending to specific user
+            const targetClient = clients.get(data.targetUserId);
+            if (targetClient) {
+              // Send to target user
+              targetClient.ws.send(JSON.stringify({ 
+                type: 'message', 
+                ...messageObj 
+              }));
+              
+              // Also send to admin to show in their chat
+              sender.ws.send(JSON.stringify({ 
+                type: 'message', 
+                ...messageObj 
+              }));
+            } else {
+              // User not online, send to admin to show their message
+              sender.ws.send(JSON.stringify({ 
+                type: 'message', 
+                ...messageObj 
+              }));
+            }
+          } else if (sender.role === 'user') {
+            // Find admin clients to send to
+            let adminFound = false;
+            for (const [id, client] of clients) {
+              if (client.role === 'admin') {
+                adminFound = true;
+                client.ws.send(JSON.stringify({ 
+                  type: 'message', 
+                  ...messageObj 
+                }));
               }
-            });
-          } else {
-            // User message: send to all admins
-            const allUsers = await storage.getAllUsers();
-            const admins = allUsers.filter(u => u.role === 'admin');
-            admins.forEach(admin => {
-              if (clients.has(admin.id) && admin.id !== userId) {
-                clients.get(admin.id)!.send(messageData);
-              }
-            });
+            }
+            
+            // Send to sender too
+            sender.ws.send(JSON.stringify({ 
+              type: 'message', 
+              ...messageObj 
+            }));
+            
+            // If no admin is online, we might want to store the message for later delivery
+            if (!adminFound) {
+              console.log('[WS] No admin online, message stored for later delivery');
+            }
           }
         }
-      } catch (error) {
-        console.error('WebSocket error:', error);
+        else if (data.type === 'getHistory' && data.userId) {
+          // Send chat history for specific conversation between admin and user
+          if (data.targetUserId) {
+            const conversationMessages = messages.filter(msg => 
+              (msg.userId === data.userId && msg.targetUserId === data.targetUserId) ||
+              (msg.userId === data.targetUserId && msg.targetUserId === data.userId)
+            );
+            
+            ws.send(JSON.stringify({ 
+              type: 'history', 
+              messages: conversationMessages 
+            }));
+          }
+        }
+      } catch (e) {
+        console.error('[WS] Error processing message:', e);
       }
     });
-
+    
+    // Handle client disconnect
     ws.on('close', () => {
-      if (userId) {
-        clients.delete(userId);
+      console.log('[WS] Client disconnected');
+      // Remove client from map
+      for (const [id, client] of clients) {
+        if (client.ws === ws) {
+          clients.delete(id);
+          break;
+        }
       }
     });
-
+    
+    // Handle errors
     ws.on('error', (error) => {
-      console.error('WebSocket connection error:', error);
-      if (userId) {
-        clients.delete(userId);
-      }
+      console.error('[WS] Connection error:', error);
     });
   });
 

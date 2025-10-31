@@ -48,8 +48,8 @@ export function Footer() {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
-                <a href="mailto:info@granthub.com" className="hover:text-foreground transition-colors">
-                  info@granthub.com
+                <a href="mailto:Granthub11@outlook.com" className="hover:text-foreground transition-colors">
+                  Granthub11@outlook.com
                 </a>
               </li>
               <li className="flex items-center gap-2">

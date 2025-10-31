@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Mail, MessageCircle, Facebook, Instagram, Clock } from "lucide-react";
+import { Mail, MessageCircle, Phone, Facebook, Instagram, Clock } from "lucide-react";
 import { SiX } from "react-icons/si";
 
 export default function Contact() {
@@ -29,12 +29,12 @@ export default function Contact() {
               Send us an email and we'll respond within 24 hours
             </p>
             <a
-              href="mailto:info@granthub.com"
+              href="mailto:Granthub11@outlook.com"
               className="inline-block"
               data-testid="link-email"
             >
               <Button variant="outline" className="w-full">
-                info@granthub.com
+                Granthub11@outlook.com
               </Button>
             </a>
           </Card>
@@ -49,13 +49,13 @@ export default function Contact() {
               Get instant support via WhatsApp messenger
             </p>
             <a
-              href="https://wa.me/1234567890"
+              href="https://wa.me/12232704045"
               target="_blank"
               rel="noopener noreferrer"
               data-testid="link-whatsapp"
             >
               <Button variant="outline" className="w-full">
-                Chat on WhatsApp
+                +1 (223) 270-4045
               </Button>
             </a>
           </Card>

@@ -1,18 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
-    let errorMessage = res.statusText;
-    try {
-      const errorData = await res.json();
-      errorMessage = errorData.message || errorMessage;
-    } catch {
-      const text = await res.text();
-      if (text) errorMessage = text;
-    }
-    throw new Error(errorMessage);
-  }
-}
+
 
 function getAuthHeaders(): HeadersInit {
   const token = localStorage.getItem("token");
@@ -42,7 +30,26 @@ export async function apiRequest<T = any>(
     credentials: "include",
   });
 
-  await throwIfResNotOk(res);
+  // Clone the response to allow reading it in error handling without consuming the body
+  const resClone = res.clone();
+
+  if (!res.ok) {
+    let errorMessage = res.statusText;
+    try {
+      const errorData = await resClone.json();
+      errorMessage = errorData.message || errorMessage;
+    } catch {
+      try {
+        const text = await resClone.text();
+        if (text) errorMessage = text;
+      } catch {
+        // If both json() and text() fail, use statusText
+        errorMessage = res.statusText;
+      }
+    }
+    throw new Error(errorMessage);
+  }
+
   return await res.json();
 }
 
@@ -63,7 +70,26 @@ export const getQueryFn: <T>(options: {
       return null;
     }
 
-    await throwIfResNotOk(res);
+    // Clone the response to allow reading it in error handling without consuming the body
+    const resClone = res.clone();
+
+    if (!res.ok) {
+      let errorMessage = res.statusText;
+      try {
+        const errorData = await resClone.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch {
+        try {
+          const text = await resClone.text();
+          if (text) errorMessage = text;
+        } catch {
+          // If both json() and text() fail, use statusText
+          errorMessage = res.statusText;
+        }
+      }
+      throw new Error(errorMessage);
+    }
+    
     return await res.json();
   };
 

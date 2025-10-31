@@ -50,6 +50,7 @@ export const grantApplications = pgTable("grant_applications", {
   fileName: text("file_name"),
   status: text("status").notNull().default("pending"), // "pending", "under_review", "approved", "rejected"
   adminNotes: text("admin_notes"),
+  disbursementAmount: integer("disbursement_amount"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -65,6 +66,7 @@ export const insertGrantApplicationSchema = createInsertSchema(grantApplications
 export const updateGrantApplicationStatusSchema = z.object({
   status: z.enum(["pending", "under_review", "approved", "rejected"]),
   adminNotes: z.string().optional(),
+  disbursementAmount: z.number().optional(),
 });
 
 export type InsertGrantApplication = z.infer<typeof insertGrantApplicationSchema>;

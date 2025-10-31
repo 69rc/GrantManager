@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/contexts/ThemeProvider";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { ChatWidget } from "@/components/ChatWidget";
+import { TelegramChat } from "@/components/TelegramChat";
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -17,6 +18,7 @@ import Apply from "@/pages/Apply";
 import Dashboard from "@/pages/Dashboard";
 import Admin from "@/pages/Admin";
 import Contact from "@/pages/Contact";
+
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -39,6 +41,7 @@ function Router() {
       </div>
       <Footer />
       <ChatWidget />
+      <TelegramChat />
     </div>
   );
 }
